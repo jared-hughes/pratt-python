@@ -28,7 +28,7 @@ class Tokenizer:
     def _next(self) -> tuple[str, str]:
         if self.index >= len(self.string):
             return ("eof", "")
-        for (tokType, pattern) in tokenMatchers:
+        for tokType, pattern in tokenMatchers:
             m = pattern.match(self.string, self.index)
             if m:
                 self.index += len(m.group(0))
@@ -79,56 +79,53 @@ def parse(string: str):
 # Parse some stuff, and only allow operators with power at least maxPower
 def parseMain(tok: Tokenizer, maxPower: Power):
     left = parseInitial(tok)
-    return parseConsequent(tok, left, maxPower)
+    while (newLeft := parseConsequent(tok, left, maxPower)) != None:
+        left = newLeft
+    return left
 
 
+# Returns None to indicate breaking.
 def parseConsequent(tok: Tokenizer, left: float, maxPower: Power):
     match tok.peek():
         case ("punct", "+"):
             if Power.plus < maxPower:
                 # Example break: expression is 2*3+4, left=3, maxPower=Power.times
                 # We don't want to do 3+4. So just return 3 and move on.
-                return left
+                return None
             tok.consume()
-            newLeft = left + parseMain(tok, Power.plus + 1)
-            return parseConsequent(tok, newLeft, maxPower)
+            return left + parseMain(tok, Power.plus + 1)
         case ("punct", "-"):
             if Power.plus < maxPower:
-                return left
+                return None
             tok.consume()
             # Add 1 because we don't want to parse 1-2+3 as 1-(2+3).
-            newLeft = left - parseMain(tok, Power.plus + 1)
-            return parseConsequent(tok, newLeft, maxPower)
+            return left - parseMain(tok, Power.plus + 1)
         case ("punct", "*"):
             if Power.times < maxPower:
-                return left
+                return None
             # Example keep going: expression is 2+3*4, left=3, maxPower=Power.plus
             tok.consume()
-            newLeft = left * parseMain(tok, Power.times + 1)
-            return parseConsequent(tok, newLeft, maxPower)
+            return left * parseMain(tok, Power.times + 1)
         case ("punct", "/"):
             if Power.times < maxPower:
-                return left
+                return None
             tok.consume()
-            newLeft = left / parseMain(tok, Power.times + 1)
-            return parseConsequent(tok, newLeft, maxPower)
+            return left / parseMain(tok, Power.times + 1)
         case ("punct", "^"):
             if Power.pow < maxPower:
-                return left
+                return None
             tok.consume()
             # Don't add 1 here: we want to parse 2^3^4 as 2^(3^4)
-            newLeft = left ** parseMain(tok, Power.pow)
-            return parseConsequent(tok, newLeft, maxPower)
+            return left ** parseMain(tok, Power.pow)
         case ("punct", "("):
             tok.consume()
             # Add 1 because we don't want to parse 1-2+3 as 1-(2+3).
             args = parseCommaSepUntil(tok)
             tok.consumePunct(")")
-            newLeft = left(*args)
-            return parseConsequent(tok, newLeft, maxPower)
+            return left(*args)
         case _:
             # This isn't a consequent, e.g. a close-paren ")".
-            return left
+            return None
 
 
 def parseCommaSepUntil(tok: Tokenizer):
