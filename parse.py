@@ -1,9 +1,13 @@
 import re
 from enum import IntEnum
+import traceback
+
+from frame import frame
 
 tokenMatchers = [
     ("const", r"\d+(\.\d+)?"),
-    ("punct", r"[()+\-*/^]"),
+    ("punct", r"[()+\-*/^,]"),
+    ("id", r"[a-zA-Z][a-zA-Z0-9]*"),
     ("space", r"\s+"),  # Tokenizer never emits "space" token
     # Tokenizer also produces "eof" token
 ]
@@ -64,7 +68,7 @@ class Power(IntEnum):
     pow = 30
 
 
-def parse(string: str) -> float:
+def parse(string: str):
     tok = Tokenizer(string)
     result = parseMain(tok, Power.top)
     if tok.peek() != ("eof", ""):
@@ -74,12 +78,12 @@ def parse(string: str) -> float:
 
 
 # Parse some stuff, and only allow operators with power at least maxPower
-def parseMain(tok: Tokenizer, maxPower: Power) -> float:
+def parseMain(tok: Tokenizer, maxPower: Power):
     left = parseInitial(tok)
     return parseConsequent(tok, left, maxPower)
 
 
-def parseConsequent(tok: Tokenizer, left: float, maxPower: Power) -> float:
+def parseConsequent(tok: Tokenizer, left: float, maxPower: Power):
     match tok.peek():
         case ("punct", "+"):
             if Power.plus < maxPower:
@@ -116,12 +120,29 @@ def parseConsequent(tok: Tokenizer, left: float, maxPower: Power) -> float:
             # Don't add 1 here: we want to parse 2^3^4 as 2^(3^4)
             newLeft = left ** parseMain(tok, Power.pow)
             return parseConsequent(tok, newLeft, maxPower)
+        case ("punct", "("):
+            tok.consume()
+            # Add 1 because we don't want to parse 1-2+3 as 1-(2+3).
+            args = parseCommaSepUntil(tok)
+            tok.consumePunct(")")
+            newLeft = left(*args)
+            return parseConsequent(tok, newLeft, maxPower)
         case _:
             # This isn't a consequent, e.g. a close-paren ")".
             return left
 
 
-def parseInitial(tok: Tokenizer) -> float:
+def parseCommaSepUntil(tok: Tokenizer):
+    entries = []
+    while True:
+        entries.append(parseMain(tok, Power.top))
+        if tok.peek() != ("punct", ","):
+            break
+        tok.consume()
+    return entries
+
+
+def parseInitial(tok: Tokenizer):
     match tok.consume():
         case ("const", string):
             return float(string)
@@ -129,6 +150,8 @@ def parseInitial(tok: Tokenizer) -> float:
             p = parseMain(tok, Power.top)
             tok.consumePunct(")")
             return p
+        case ("id", id):
+            return frame[id]
         case ("eof", ""):
             raise ParseError("Unexpected end of file")
         case token:
@@ -136,6 +159,32 @@ def parseInitial(tok: Tokenizer) -> float:
 
 
 if __name__ == "__main__":
-    while True:
-        string = input("Expr: ")
-        print(parse(string))
+    import cmd
+
+    class Shell(cmd.Cmd):
+        intro = "Basic syntax: 1*sin(3)+2-(3/4)*5^6.3. Type :functions for a list of functions.\n"
+        prompt = ">>> "
+        file = None
+
+        def precmd(self, line):
+            if line in "" or line[0] == "?":
+                return line
+            elif line[0] == ":":
+                return line[1:]
+            else:
+                return "eval " + line
+
+        def do_eval(self, arg):
+            "Evaluate an expression"
+            try:
+                val = parse(arg)
+                print(val)
+            except:
+                traceback.print_exc(limit=0)
+            print()
+
+        def do_functions(self, _arg):
+            "Print list of available functions."
+            self.columnize(list(frame.keys()))
+
+    Shell().cmdloop()
