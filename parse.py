@@ -1,6 +1,5 @@
 import re
 from enum import IntEnum
-import traceback
 
 from frame import frame
 
@@ -156,35 +155,3 @@ def parseInitial(tok: Tokenizer):
             raise ParseError("Unexpected end of file")
         case token:
             raise ParseError(f"Invalid token here: {token}")
-
-
-if __name__ == "__main__":
-    import cmd
-
-    class Shell(cmd.Cmd):
-        intro = "Basic syntax: 1*sin(3)+2-(3/4)*5^6.3. Type :functions for a list of functions.\n"
-        prompt = ">>> "
-        file = None
-
-        def precmd(self, line):
-            if line in "" or line[0] == "?":
-                return line
-            elif line[0] == ":":
-                return line[1:]
-            else:
-                return "eval " + line
-
-        def do_eval(self, arg):
-            "Evaluate an expression"
-            try:
-                val = parse(arg)
-                print(val)
-            except:
-                traceback.print_exc(limit=0)
-            print()
-
-        def do_functions(self, _arg):
-            "Print list of available functions."
-            self.columnize(list(frame.keys()))
-
-    Shell().cmdloop()
