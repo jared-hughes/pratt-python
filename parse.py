@@ -5,7 +5,7 @@ from frame import frame
 
 tokenMatchers = [
     ("const", r"\d+(\.\d+)?"),
-    ("punct", r"[()+\-*/^,]"),
+    ("punct", r"[()+\-*/^,%]"),
     ("id", r"[a-zA-Z][a-zA-Z0-9]*"),
     ("space", r"\s+"),  # Tokenizer never emits "space" token
     # Tokenizer also produces "eof" token
@@ -111,6 +111,11 @@ def parseConsequent(tok: Tokenizer, left: float, maxPower: Power):
                 return None
             tok.consume()
             return left / parseMain(tok, Power.times + 1)
+        case ("punct", "%"):
+            if Power.times < maxPower:
+                return None
+            tok.consume()
+            return left % parseMain(tok, Power.times + 1)
         case ("punct", "^"):
             if Power.pow < maxPower:
                 return None
@@ -146,6 +151,9 @@ def parseInitial(tok: Tokenizer):
             p = parseMain(tok, Power.top)
             tok.consumePunct(")")
             return p
+        case ("punct", "-"):
+            p = parseMain(tok, Power.pow)
+            return -p
         case ("id", id):
             return frame[id]
         case ("eof", ""):
